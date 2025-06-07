@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Log Visualizer V2</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --controls-bg: #e9ecef;
+            --border-color: #ced4da;
+            --input-bg: #fff;
+            --button-bg: #dee2e6;
+            --button-hover-bg: #adb5bd;
+            --status-bg: #e9ecef;
+            --message-bg: #fff;
+            --message-border: #f1f3f5;
+            --timestamp-color: #6c757d;
+            --highlight-bg: #fff3cd;
+            --link-color: #0d6efd;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden; /* Prevents body scroll */
+        }
+
+        .controls {
+            padding: 1rem;
+            background-color: var(--controls-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem; /* Vertical gap, Horizontal gap */
+            align-items: flex-end; /* Align items to bottom for better label alignment */
+            transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .controls label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #505050;
+            margin-bottom: 0.2rem;
+        }
+        
+        .controls button,
+        .controls input,
+        .controls select {
+            font-size: 0.9rem;
+            padding: 0.5rem 0.7rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: var(--input-bg);
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .controls button {
+            cursor: pointer;
+            background-color: #4a89dc;
+            border-color: #3a70c2;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .controls button:hover:not(:disabled) {
+            background-color: #3a70c2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .controls button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .controls button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Specially style the jump button */
+        #jumpButton {
+            background-color: #5cb85c;
+            border-color: #4cae4c;
+        }
+        
+        #jumpButton:hover:not(:disabled) {
+            background-color: #4cae4c;
+        }
+
+        .controls input[type="text"],
+        .controls input[type="datetime-local"],
+        .controls select {
+            min-width: 160px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .controls input[type="text"]:focus,
+        .controls input[type="datetime-local"]:focus,
+        .controls select:focus {
+            border-color: #4a89dc;
+            box-shadow: 0 0 0 2px rgba(74, 137, 220, 0.2);
+            outline: none;
+        }
+        
+        .controls .checkbox-group {
+            display: flex;
+            align-items: center;
+            padding-top: 1.8em; /* Align checkbox with bottom of other inputs */
+            gap: 0.4rem;
+        }
+        
+        .controls .checkbox-group input[type="checkbox"] {
+            margin: 0;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        
+        .controls .checkbox-group label {
+            margin: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .input-area {
+            padding: 1rem;
+            background-color: var(--input-bg);
+            border-bottom: 1px solid var(--border-color);
+            transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+        }
+
+        .input-area textarea {
+            width: calc(100% - 1.2rem); /* Account for padding */
+            min-height: 80px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            padding: 0.5rem;
+        }
+        .input-area label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        .input-area input[type="file"] {
+            margin-bottom: 0.5rem;
+        }
+        .input-area button {
+             margin-top: 0.5rem;
+        }
+
+        #chat-display {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background-color: var(--bg-color);
+            scroll-behavior: smooth; /* For jump-to-date */
+        }
+
+        .message-item {
+            margin-bottom: 0.75rem;
+            padding: 0.6rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--message-border);
+            background-color: var(--message-bg);
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .message-item .timestamp {
+            font-size: 0.75em;
+            color: var(--timestamp-color);
+            margin-bottom: 0.25rem;
+            display: block;
+        }
+
+        .message-item .sender {
+            font-weight: 600; /* Slightly bolder */
+            margin-right: 0.4rem;
+        }
+
+        .message-item .content {
+            white-space: pre-wrap; /* Preserve line breaks in message */
+            color: var(--text-color);
+        }
+
+        #status {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-style: italic;
+            color: var(--timestamp-color);
+            background-color: var(--status-bg);
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            min-height: 1.2em;
+            transition: opacity 0.2s ease;
+        }
+
+        /* Highlight style for jump */
+        .message-item.highlight {
+            transition: background-color 0.8s ease-in-out;
+            background-color: var(--highlight-bg);
+        }
+
+        /* Distraction Free Mode Styles */
+        .distraction-free .input-area,
+        .distraction-free .controls {
+            max-height: 0;
+            overflow: hidden;
+            padding: 0;
+            opacity: 0;
+            border: none;
+        }
+
+        .distraction-free #chat-display {
+            flex-grow: 1;
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+
+        #distraction-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            background-color: rgba(74, 137, 220, 0.85);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+        }
+
+        #distraction-toggle:hover {
+            background-color: rgba(58, 112, 194, 0.95);
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+            transform: translateY(-2px);
+        }
+
+        #distraction-toggle:active {
+            transform: translateY(1px);
+        }
+
+        .distraction-free #status {
+            opacity: 0.5;
+            transition: opacity 0.5s ease;
+        }
+        
+        .distraction-free #status:hover {
+            opacity: 1;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 992px) { /* Adjust breakpoint if needed */
+             .controls {
+                 gap: 0.75rem; /* Reduce gap slightly on smaller screens */
+             }
+        }
+        @media (max-width: 768px) {
+            body { font-size: 15px; }
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+             .control-group {
+                 width: 100%;
+             }
+            .controls input[type="text"],
+            .controls input[type="datetime-local"],
+            .controls select {
+                width: 100%;
+                box-sizing: border-box;
+            }
+             .controls .checkbox-group {
+                 padding-top: 0.5em; /* Adjust alignment in column layout */
+                 justify-content: flex-start;
+             }
+        }
+
+        // Style for date separators
+        .date-separator {
+            text-align: center;
+            padding: 6px 0;
+            margin: 14px 0;
+            font-weight: 500;
+            color: #6c757d;
+            background-color: rgba(0, 0, 0, 0.03);
+            border-radius: 4px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-area">
+            <label for="fileInput">1. Upload .txt file or paste content below:</label>
+            <input type="file" id="fileInput" accept=".txt">
+            <textarea id="textInput" placeholder="[DD/MM/YYYY, HH:MM:SS AM/PM] Sender: Message..."></textarea>
+            <button id="processButton">2. Process Input</button>
+            <button id="clearButton" style="margin-left: 10px;">Clear All Data</button>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="searchInput">Search Messages:</label>
+                <input type="text" id="searchInput" placeholder="Enter search term...">
+            </div>
+             <div class="control-group checkbox-group">
+                <input type="checkbox" id="caseSensitive">
+                <label for="caseSensitive">Case Sensitive</label>
+            </div>
+            <div class="control-group">
+                <label for="senderFilter">Filter by Sender:</label>
+                <select id="senderFilter">
+                    <option value="">-- All Senders --</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="startDateFilter">From Date/Time:</label>
+                <input type="datetime-local" id="startDateFilter">
+            </div>
+             <div class="control-group">
+                <label for="endDateFilter">To Date/Time:</label>
+                <input type="datetime-local" id="endDateFilter">
+            </div>
+             <div class="control-group">
+                <button id="filterButton">Apply Filters / Search</button>
+             </div>
+             <div class="control-group">
+                <label for="jumpToDate">Jump to Date/Time:</label>
+                <input type="datetime-local" id="jumpToDate">
+             </div>
+             <div class="control-group">
+                <button id="jumpButton">Go</button>
+             </div>
+        </div>
+
+        <div id="chat-display">
+            <!-- Messages will be rendered here -->
+        </div>
+
+        <div id="status">Ready. Upload a file or paste text and click Process.</div>
+    </div>
+
+    <button id="distraction-toggle" title="Toggle Distraction-Free Mode">📱</button>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const textInput = document.getElementById('textInput');
+        const processButton = document.getElementById('processButton');
+        const clearButton = document.getElementById('clearButton');
+        const searchInput = document.getElementById('searchInput');
+        const caseSensitive = document.getElementById('caseSensitive');
+        const senderFilter = document.getElementById('senderFilter');
+        const startDateFilter = document.getElementById('startDateFilter');
+        const endDateFilter = document.getElementById('endDateFilter');
+        const filterButton = document.getElementById('filterButton');
+        const jumpToDateInput = document.getElementById('jumpToDate');
+        const jumpButton = document.getElementById('jumpButton');
+        const chatDisplay = document.getElementById('chat-display');
+        const statusDiv = document.getElementById('status');
+        const distractionToggle = document.getElementById('distraction-toggle');
+        
+        // --- Variables and state ---
+        let allMessages = []; // Holds all parsed messages { timestamp: Date, sender: string, message: string, original: string, id: number }
+        let filteredMessages = []; // Holds currently filtered/searched messages
+        let senderColors = {}; // Map sender names to colors
+        let nextColorIndex = 0;
+        
+        // Message rendering constants
+        const VISIBLE_WINDOW_SIZE = 100; // Total messages visible at one time
+        const RENDER_AHEAD = 50; // How many messages to render ahead in scroll direction
+        const RENDER_BEHIND = 50; // How many messages to keep behind in scroll direction
+        const CLEANUP_THRESHOLD = 200; // Remove messages outside this threshold from view
+        
+        // Rendering state
+        let visibleStartIndex = 0; // First message index currently visible
+        let visibleEndIndex = 0; // Last message index currently visible
+        let renderedStartIndex = 0; // First message index currently rendered in DOM
+        let renderedEndIndex = 0; // Last message index currently rendered in DOM
+        let isScrolling = null; // For scroll debounce timer
+        let isProcessingScroll = false; // Flag to prevent multiple scroll handlers
+
+        // Enhanced color palette
+        const colorPalette = [
+            '#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6',
+            '#008080', '#9A6324', '#800000', '#000075', '#a9a9a9', '#1f78b4', '#b2df8a',
+            '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a',
+            '#b15928', '#8dd3c7', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69',
+            '#fccde5', '#d9d9d9', '#bc80bd', '#ccebc5', '#ffed6f'
+        ];
+
+        function getSenderColor(sender) {
+            if (!senderColors[sender]) {
+                senderColors[sender] = colorPalette[nextColorIndex % colorPalette.length];
+                nextColorIndex++;
+            }
+            return senderColors[sender];
+        }
+
+        // Utility function for color conversion - hex to RGB components
+        function hexToRgb(hex) {
+            // Remove # if present
+            hex = hex.replace(/^#/, '');
+            
+            // Parse hex to RGB
+            let bigint = parseInt(hex, 16);
+            let r = (bigint >> 16) & 255;
+            let g = (bigint >> 8) & 255;
+            let b = bigint & 255;
+            
+            return { r, g, b };
+        }
+
+        // --- Parsing Logic ---
+        function parseCustomDate(dateStr, timeStr) {
+            try {
+                // Normalize potential non-breaking space (\u202f) before AM/PM
+                const normalizedTimeStr = timeStr.replace(/\s*([\u0041\u0050]\u004d)/i, ' $1').trim(); // Ensure single space before AM/PM
+                const [day, month, year] = dateStr.split('/').map(Number);
+                const [timePart, ampm] = normalizedTimeStr.split(' ');
+                let [hours, minutes, seconds] = timePart.split(':').map(Number);
+
+                if (isNaN(day) || isNaN(month) || isNaN(year) || isNaN(hours) || isNaN(minutes) || isNaN(seconds)) {
+                    console.error(`Invalid number found during parsing: ${dateStr} ${timeStr}`);
+                    return null;
+                }
+
+                // Adjust hours for AM/PM
+                if (ampm) {
+                    const lowerAmpm = ampm.toLowerCase();
+                    if (lowerAmpm === 'pm' && hours >= 1 && hours <= 11) {
+                        hours += 12;
+                    } else if (lowerAmpm === 'am' && hours === 12) { // Midnight case: 12 AM -> 00 hours
+                        hours = 0;
+                    }
+                    // 12 PM (noon) is correctly 12, no change needed.
+                    // AM hours 1-11 are correct, no change needed.
+                } else {
+                    console.warn(`Missing AM/PM marker for: ${dateStr} ${timeStr}. Assuming 24-hour format.`);
+                    // If it were 24h, no adjustment needed, but the source format includes AM/PM
+                }
+
+                // Month is 0-indexed in JS Date (0 = January, 11 = December)
+                const jsMonth = month - 1;
+                
+                // NOTE: FIX FOR DATE OFFSET ISSUE
+                // Use local time zone instead of UTC to prevent offset issues
+                const dateObject = new Date(year, jsMonth, day, hours, minutes, seconds);
+
+                // Basic validation: Check if the constructed date parts match the input
+                // This helps catch issues like Feb 30th becoming Mar 2nd.
+                if (dateObject.getFullYear() !== year ||
+                    dateObject.getMonth() !== jsMonth ||
+                    dateObject.getDate() !== day) {
+                    console.error(`Date mismatch after construction (potential invalid date like Feb 30): Input ${dateStr}, Parsed ${dateObject.toISOString()}`);
+                    return null;
+                }
+
+                return dateObject;
+            } catch (e) {
+                console.error(`Critical error parsing date/time: "${dateStr}", "${timeStr}"`, e);
+                return null; // Indicate parsing failure
+            }
+        }
+
+        // Regex to capture the main message parts, allowing for variations in spacing
+        // Optimized regex for better performance - pre-compiled for reuse
+        const messageRegex = /^\[(\d{1,2}\/\d{1,2}\/\d{4}),\s*(\d{1,2}:\d{2}:\d{2}(?:\s|\u202f)*(?:AM|PM)?)\]\s*([^:]+):\s*([\s\S]*)/m;
+
+        function processLogData(text) {
+            // --- Start Processing ---
+            statusDiv.textContent = "Processing... Please wait.";
+            processButton.disabled = true;
+            clearButton.disabled = true; // Disable clear while processing too
+            
+            // Break processing into chunks to avoid UI freeze on large files
+            setTimeout(() => {
+                try {
+                    console.time("ProcessingTime"); // Start timer
+                    allMessages = [];
+                    senderColors = {};
+                    nextColorIndex = 0;
+                    const senders = new Set();
+                    let parseErrors = 0;
+
+                    const lines = text.split('\n');
+                    const totalLines = lines.length;
+                    const CHUNK_SIZE = 5000; // Process this many lines at once
+                    let processedLines = 0;
+                    let currentMessage = null;
+                    
+                    // Process in chunks to avoid UI freeze
+                    function processChunk() {
+                        const startTime = performance.now();
+                        const chunkEnd = Math.min(processedLines + CHUNK_SIZE, totalLines);
+                        
+                        for (let lineNumber = processedLines; lineNumber < chunkEnd; lineNumber++) {
+                            const line = lines[lineNumber];
+                            const match = line.match(messageRegex);
+                            
+                            if (match) {
+                                // Save previous message if it exists
+                                if (currentMessage) {
+                                    allMessages.push(currentMessage);
+                                }
+
+                                const [, dateStr, timeStr, sender, messageContent] = match;
+                                const timestamp = parseCustomDate(dateStr.trim(), timeStr.trim());
+
+                                if (timestamp) {
+                                    const cleanSender = sender.trim();
+                                    currentMessage = {
+                                        timestamp: timestamp,
+                                        sender: cleanSender,
+                                        message: messageContent,
+                                        original: line,
+                                        id: allMessages.length // Unique ID for jump target
+                                    };
+                                    senders.add(cleanSender);
+                                } else {
+                                    parseErrors++;
+                                    // Handle lines that look like messages but fail date parsing - treat as continuation
+                                    if (currentMessage) {
+                                        currentMessage.message += '\n' + line;
+                                        currentMessage.original += '\n' + line;
+                                    }
+                                }
+                            } else if (currentMessage && line.trim().length > 0) {
+                                // Line doesn't match the start format, assume it's a continuation
+                                currentMessage.message += '\n' + line;
+                                currentMessage.original += '\n' + line;
+                            }
+                        }
+                        
+                        processedLines = chunkEnd;
+                        const progress = Math.floor((processedLines / totalLines) * 100);
+                        statusDiv.textContent = `Processing... ${progress}% (${processedLines}/${totalLines} lines)`;
+                        
+                        if (processedLines < totalLines) {
+                            // More to process, schedule next chunk
+                            setTimeout(processChunk, 0);
+                        } else {
+                            // Processing complete, finish up
+                            finishProcessing();
+                        }
+                    }
+                    
+                    function finishProcessing() {
+                        // Add the last message if we have one
+                        if (currentMessage) {
+                            allMessages.push(currentMessage);
+                        }
+                        
+                        // Sort messages by timestamp if needed (should already be in order)
+                        // allMessages.sort((a, b) => a.timestamp - b.timestamp);
+                        
+                        // Populate sender dropdown
+                        senderFilter.innerHTML = '<option value="">-- All Senders --</option>'; // Clear previous
+                        const sortedSenders = Array.from(senders).sort((a, b) => a.localeCompare(b));
+                        sortedSenders.forEach(sender => {
+                            const option = document.createElement('option');
+                            option.value = sender;
+                            option.textContent = sender;
+                            senderFilter.appendChild(option);
+                            getSenderColor(sender); // Pre-assign colors
+                        });
+
+                        // Clear input text after successful processing
+                        textInput.value = '';
+                        
+                        filteredMessages = [...allMessages]; // Initially show all
+                        // Reset rendering state
+                        renderedStartIndex = 0;
+                        renderedEndIndex = 0;
+                        chatDisplay.innerHTML = ''; // Clear previous display
+                        
+                        // Initialize the visible window at the beginning
+                        initializeMessageWindow(0);
+                        
+                        // Enable scrolling after initial render
+                        chatDisplay.onscroll = handleScroll;
+                        
+                        updateStatus(parseErrors);
+                        processButton.disabled = false;
+                        clearButton.disabled = false;
+                        
+                        console.timeEnd("ProcessingTime");
+                    }
+                    
+                    // Start the chunk processing
+                    processChunk();
+                    
+                } catch (error) {
+                    console.error("Error during processing:", error);
+                    statusDiv.textContent = `Error processing data: ${error.message}. Check console for details.`;
+                    resetUIState(); // Reset UI partially on critical error
+                    processButton.disabled = false;
+                    clearButton.disabled = false;
+                }
+            }, 50); // Small delay to allow UI to update before starting
+        }
+
+        // --- Rendering Logic with Date Grouping ---
+        function createMessageElement(msg, showDateHeader = false) {
+            const container = document.createDocumentFragment();
+            const msgIndex = filteredMessages.indexOf(msg);
+            
+            // Add date separator if needed
+            if (showDateHeader) {
+                const dateSeparator = document.createElement('div');
+                dateSeparator.classList.add('date-separator');
+                const dateFormatted = msg.timestamp.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                dateSeparator.textContent = dateFormatted;
+                dateSeparator.setAttribute('data-date', formatDateKey(msg.timestamp));
+                container.appendChild(dateSeparator);
+            }
+            
+            // Create the message element
+            const div = document.createElement('div');
+            div.classList.add('message-item');
+            div.id = `msg-${msg.id}`; // ID for jumping
+            div.setAttribute('data-index', msgIndex); // Store index for scroll calculations
+            
+            // Add background color based on sender color with low opacity
+            const senderColor = getSenderColor(msg.sender);
+            // Convert hex to RGB and apply 0.1 opacity
+            const rgbColor = hexToRgb(senderColor);
+            div.style.backgroundColor = `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, 0.1)`;
+            div.style.borderLeft = `3px solid ${senderColor}`;
+
+            const timestampSpan = document.createElement('span');
+            timestampSpan.classList.add('timestamp');
+            // Display in local time zone for user readability
+            timestampSpan.textContent = msg.timestamp.toLocaleString(undefined, {
+                 dateStyle: 'short', timeStyle: 'medium'
+            });
+
+            const senderSpan = document.createElement('span');
+            senderSpan.classList.add('sender');
+            senderSpan.textContent = msg.sender + ':';
+            senderSpan.style.color = senderColor;
+
+            const contentSpan = document.createElement('span');
+            contentSpan.classList.add('content');
+            contentSpan.textContent = msg.message; // Handles newlines correctly
+
+            div.appendChild(timestampSpan);
+            div.appendChild(senderSpan);
+            div.appendChild(contentSpan);
+            container.appendChild(div);
+
+            return container;
+        }
+
+        // Helper to format date as a consistent string key for comparison
+        function formatDateKey(date) {
+            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        }
+
+        // Should we show a date header for this message?
+        function shouldShowDateHeader(currentMsg, prevMsg) {
+            // Always show header for first message
+            if (!prevMsg) return true;
+            
+            // Check if date changed
+            const currentDate = formatDateKey(currentMsg.timestamp);
+            const prevDate = formatDateKey(prevMsg.timestamp);
+            return currentDate !== prevDate;
+        }
+
+        // Initialize the message window starting at centerIndex
+        function initializeMessageWindow(centerIndex) {
+            // Ensure centerIndex is valid
+            centerIndex = Math.max(0, Math.min(centerIndex, filteredMessages.length - 1));
+            
+            // Calculate the window boundaries
+            const halfWindow = Math.floor(VISIBLE_WINDOW_SIZE / 2);
+            visibleStartIndex = Math.max(0, centerIndex - halfWindow);
+            visibleEndIndex = Math.min(filteredMessages.length - 1, visibleStartIndex + VISIBLE_WINDOW_SIZE - 1);
+            
+            // Adjust start if we hit the end
+            if (visibleEndIndex === filteredMessages.length - 1) {
+                visibleStartIndex = Math.max(0, visibleEndIndex - VISIBLE_WINDOW_SIZE + 1);
+            }
+            
+            // Clear existing messages
+            chatDisplay.innerHTML = '';
+            
+            // Render the initial window
+            renderedStartIndex = visibleStartIndex;
+            renderedEndIndex = visibleEndIndex;
+            
+            // Create fragment to append all messages at once (better performance)
+            const fragment = document.createDocumentFragment();
+            for (let i = renderedStartIndex; i <= renderedEndIndex; i++) {
+                const showDateHeader = shouldShowDateHeader(filteredMessages[i], filteredMessages[i-1]);
+                fragment.appendChild(createMessageElement(filteredMessages[i], showDateHeader));
+            }
+            chatDisplay.appendChild(fragment);
+            
+            // Update status with the current window
+            updateStatus();
+            
+            // Setup virtual scrolling
+            setupVirtualScrolling();
+            
+            return visibleStartIndex;
+        }
+
+        // Render additional messages in the specified direction
+        function renderAdditionalMessages(direction) {
+            // 'up' = render messages above current view
+            // 'down' = render messages below current view
+            const fragment = document.createDocumentFragment();
+            let newElementsAdded = 0;
+            
+            if (direction === 'up' && renderedStartIndex > 0) {
+                // Add messages at the top
+                const startRender = Math.max(0, renderedStartIndex - RENDER_AHEAD);
+                for (let i = renderedStartIndex - 1; i >= startRender; i--) {
+                    const showDateHeader = shouldShowDateHeader(filteredMessages[i], filteredMessages[i-1]);
+                    const msgElement = createMessageElement(filteredMessages[i], showDateHeader);
+                    if (chatDisplay.firstChild) {
+                        fragment.insertBefore(msgElement, fragment.firstChild);
+                    } else {
+                        fragment.appendChild(msgElement);
+                    }
+                    newElementsAdded++;
+                }
+                
+                if (newElementsAdded > 0) {
+                    // Insert at the top of the container
+                    if (chatDisplay.firstChild) {
+                        chatDisplay.insertBefore(fragment, chatDisplay.firstChild);
+                    } else {
+                        chatDisplay.appendChild(fragment);
+                    }
+                    renderedStartIndex = startRender;
+                }
+            } else if (direction === 'down' && renderedEndIndex < filteredMessages.length - 1) {
+                // Add messages at the bottom
+                const endRender = Math.min(filteredMessages.length - 1, renderedEndIndex + RENDER_AHEAD);
+                for (let i = renderedEndIndex + 1; i <= endRender; i++) {
+                    const showDateHeader = shouldShowDateHeader(filteredMessages[i], filteredMessages[i-1]);
+                    fragment.appendChild(createMessageElement(filteredMessages[i], showDateHeader));
+                    newElementsAdded++;
+                }
+                
+                if (newElementsAdded > 0) {
+                    chatDisplay.appendChild(fragment);
+                    renderedEndIndex = endRender;
+                }
+            }
+            
+            // Clean up far away messages to keep DOM size reasonable
+            cleanupOutOfViewMessages();
+            
+            // Re-observe new message elements
+            setupVirtualScrolling();
+            
+            return newElementsAdded;
+        }
+
+        // Remove messages that are far from the current view to keep DOM size manageable
+        function cleanupOutOfViewMessages() {
+            // Only clean up if we have enough messages rendered
+            if (renderedEndIndex - renderedStartIndex > CLEANUP_THRESHOLD) {
+                const messagesToRemove = [];
+                const allMessageElements = chatDisplay.querySelectorAll('.message-item');
+                
+                // Identify elements to remove that are far from visible window
+                allMessageElements.forEach(el => {
+                    const index = parseInt(el.getAttribute('data-index'), 10);
+                    // Remove messages that are too far above visible window
+                    if (index < visibleStartIndex - RENDER_BEHIND) {
+                        messagesToRemove.push(el);
+                        if (index === renderedStartIndex) renderedStartIndex++;
+                    }
+                    // Remove messages that are too far below visible window
+                    else if (index > visibleEndIndex + RENDER_BEHIND) {
+                        messagesToRemove.push(el);
+                        if (index === renderedEndIndex) renderedEndIndex--;
+                    }
+                });
+                
+                // Remove the identified elements
+                messagesToRemove.forEach(el => el.remove());
+            }
+        }
+
+        // Optimize scroll handling with IntersectionObserver for better performance
+        function setupVirtualScrolling() {
+            if ('IntersectionObserver' in window && filteredMessages.length > 0) {
+                // Disconnect previous observer if it exists
+                if (window.messageObserver) {
+                    window.messageObserver.disconnect();
+                }
+                
+                // Create new observer
+                const options = {
+                    root: chatDisplay,
+                    rootMargin: '300px 0px', // Load 300px ahead/behind
+                    threshold: 0.01 // Trigger when 1% visible
+                };
+                
+                window.messageObserver = new IntersectionObserver((entries) => {
+                    // Check if we need to load more messages based on which elements are visible
+                    let nearTop = false;
+                    let nearBottom = false;
+                    
+                    entries.forEach(entry => {
+                        if (!entry.isIntersecting) return;
+                        
+                        const index = parseInt(entry.target.getAttribute('data-index'), 10);
+                        // Near top of list - load more above
+                        if (index - renderedStartIndex < 10) nearTop = true;
+                        // Near bottom of list - load more below
+                        if (renderedEndIndex - index < 10) nearBottom = true;
+                    });
+                    
+                    if (nearTop && renderedStartIndex > 0) {
+                        renderAdditionalMessages('up');
+                    }
+                    if (nearBottom && renderedEndIndex < filteredMessages.length - 1) {
+                        renderAdditionalMessages('down');
+                    }
+                }, options);
+                
+                // Observe all message elements
+                document.querySelectorAll('.message-item').forEach(el => {
+                    window.messageObserver.observe(el);
+                });
+                
+                return true;
+            }
+            return false;
+        }
+
+        // Main scroll handler that updates the message window
+        function handleScroll() {
+            if (isProcessingScroll) return;
+            
+            window.clearTimeout(isScrolling);
+            isScrolling = setTimeout(() => {
+                isProcessingScroll = true;
+                
+                try {
+                    // Find currently visible messages based on scroll position
+                    const containerRect = chatDisplay.getBoundingClientRect();
+                    const messageElements = chatDisplay.querySelectorAll('.message-item');
+                    let firstVisibleIndex = -1;
+                    let lastVisibleIndex = -1;
+                    
+                    // Find first and last visible message
+                    messageElements.forEach(el => {
+                        const rect = el.getBoundingClientRect();
+                        const index = parseInt(el.getAttribute('data-index'), 10);
+                        
+                        // Check if element is at least partially visible
+                        if (rect.top < containerRect.bottom && rect.bottom > containerRect.top) {
+                            if (firstVisibleIndex === -1) firstVisibleIndex = index;
+                            lastVisibleIndex = index;
+                        }
+                    });
+                    
+                    // If we couldn't find visible messages, use the middle of rendered range
+                    if (firstVisibleIndex === -1) {
+                        firstVisibleIndex = renderedStartIndex;
+                        lastVisibleIndex = Math.min(renderedStartIndex + 10, renderedEndIndex);
+                    }
+                    
+                    // Update the visible window indices
+                    visibleStartIndex = firstVisibleIndex;
+                    visibleEndIndex = lastVisibleIndex;
+                    
+                    // Determine if we need to load more messages in either direction
+                    const scrollTop = chatDisplay.scrollTop;
+                    const scrollHeight = chatDisplay.scrollHeight;
+                    const clientHeight = chatDisplay.clientHeight;
+                    
+                    // Near top - need older messages
+                    if (scrollTop < clientHeight * 0.2 && renderedStartIndex > 0) {
+                        renderAdditionalMessages('up');
+                    }
+                    
+                    // Near bottom - need newer messages
+                    if (scrollHeight - scrollTop - clientHeight < clientHeight * 0.2 && 
+                        renderedEndIndex < filteredMessages.length - 1) {
+                        renderAdditionalMessages('down');
+                    }
+                    
+                    updateStatus();
+                } finally {
+                    isProcessingScroll = false;
+                }
+            }, 100); // Debounce scroll events
+        }
+
+         // --- Filtering and Searching ---
+         function applyFiltersAndSearch() {
+             statusDiv.textContent = "Applying filters...";
+             requestAnimationFrame(() => { // Allow UI to update status
+                 const searchTerm = searchInput.value;
+                 const isCaseSensitive = caseSensitive.checked;
+                 const selectedSender = senderFilter.value;
+                 // Get dates as UTC milliseconds for reliable comparison
+                 const startDateMs = startDateFilter.value ? new Date(startDateFilter.value).getTime() : null;
+                 const endDateMs = endDateFilter.value ? new Date(endDateFilter.value).getTime() : null;
+
+                 console.log("Filters:", { searchTerm, isCaseSensitive, selectedSender, startDate: startDateFilter.value, endDate: endDateFilter.value });
+
+                 const term = isCaseSensitive ? searchTerm : searchTerm.toLowerCase();
+
+                 filteredMessages = allMessages.filter(msg => {
+                     const msgTimestampMs = msg.timestamp.getTime();
+
+                     // Sender filter
+                     if (selectedSender && msg.sender !== selectedSender) return false;
+                     // Date range filter (inclusive)
+                     if (startDateMs && msgTimestampMs < startDateMs) return false;
+                     // Add 1 day (in ms) to end date to make it inclusive of the selected day
+                     if (endDateMs && msgTimestampMs > (endDateMs + 86400000 - 1000)) return false; // ~ End of selected day
+
+                     // Search term filter
+                     if (term) {
+                         const messageText = isCaseSensitive ? msg.message : msg.message.toLowerCase();
+                         const senderText = isCaseSensitive ? msg.sender : msg.sender.toLowerCase();
+                         if (!messageText.includes(term) && !senderText.includes(term)) return false;
+                     }
+                     return true; // Passed all filters
+                 });
+
+                 console.log(`Found ${filteredMessages.length} matching messages.`);
+                 
+                 // Reset chat display and rendering state
+                 chatDisplay.innerHTML = '';
+                 renderedStartIndex = 0;
+                 renderedEndIndex = 0;
+                 
+                 if (filteredMessages.length > 0) {
+                     // Initialize with messages at the beginning
+                     initializeMessageWindow(0);
+                     chatDisplay.scrollTop = 0;
+                     
+                     // Enable scroll listener
+                     chatDisplay.onscroll = handleScroll;
+                 } else {
+                     // No messages to display
+                     statusDiv.textContent = "No messages match your filters.";
+                     chatDisplay.onscroll = null;
+                 }
+             });
+         }
+
+        // --- Jumping ---
+        function jumpToDateTime() {
+            const jumpDate = jumpToDateInput.value ? new Date(jumpToDateInput.value) : null;
+            if (!jumpDate) {
+                statusDiv.textContent = "Please select a date/time to jump to.";
+                return;
+            }
+            
+            // Safeguard against invalid date input
+            if (isNaN(jumpDate.getTime())) {
+                statusDiv.textContent = "Invalid date format. Please select a valid date.";
+                return;
+            }
+            
+            statusDiv.textContent = "Finding closest message...";
+            const jumpTimeMs = jumpDate.getTime();
+            
+            // If no filtered messages, nothing to do
+            if (filteredMessages.length === 0) {
+                statusDiv.textContent = "No messages to jump to.";
+                return;
+            }
+
+            // Find the target message index efficiently
+            let targetIndex = -1;
+            
+            // Binary search to find closest message - much faster than linear search
+            let start = 0;
+            let end = filteredMessages.length - 1;
+            
+            while (start <= end) {
+                const mid = Math.floor((start + end) / 2);
+                const midTime = filteredMessages[mid].timestamp.getTime();
+                
+                if (midTime < jumpTimeMs) {
+                    start = mid + 1;
+                } else if (midTime > jumpTimeMs) {
+                    end = mid - 1;
+                } else {
+                    // Exact match
+                    targetIndex = mid;
+                    break;
+                }
+            }
+            
+            // If no exact match, use the closest message
+            if (targetIndex === -1) {
+                if (start >= filteredMessages.length) {
+                    // All messages are before the jump time, use last message
+                    targetIndex = filteredMessages.length - 1;
+                } else if (start === 0) {
+                    // All messages are after the jump time, use first message
+                    targetIndex = 0;
+                } else {
+                    // Find the closest message between start-1 and start
+                    const prevDiff = Math.abs(filteredMessages[start-1].timestamp.getTime() - jumpTimeMs);
+                    const nextDiff = Math.abs(filteredMessages[start].timestamp.getTime() - jumpTimeMs);
+                    targetIndex = (prevDiff <= nextDiff) ? start-1 : start;
+                }
+            }
+            
+            // Reset the display and initialize window centered on the target message
+            chatDisplay.innerHTML = '';
+            renderedStartIndex = 0;
+            renderedEndIndex = 0;
+            
+            // Initialize window around the target message
+            initializeMessageWindow(targetIndex);
+            
+            // Find the element for the target message
+            const targetMessage = filteredMessages[targetIndex];
+            const targetElementId = `msg-${targetMessage.id}`;
+            const targetElement = document.getElementById(targetElementId);
+            
+            if (targetElement) {
+                // Scroll to the target message and highlight it
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetElement.classList.add('highlight');
+                setTimeout(() => {
+                    targetElement.classList.remove('highlight');
+                }, 2000);
+                
+                statusDiv.textContent = `Jumped to message at ${targetMessage.timestamp.toLocaleString()}`;
+            } else {
+                statusDiv.textContent = "Error: Could not find the target message after rendering.";
+            }
+            
+            // Re-enable scroll listener
+            chatDisplay.onscroll = handleScroll;
+        }
+
+        // --- Status Update ---
+        function updateStatus(parseErrors = 0) {
+             // Calculate actual visible range
+             let statusText = '';
+             
+             if (filteredMessages.length > 0) {
+                statusText = `Showing messages ${visibleStartIndex+1}-${visibleEndIndex+1} of ${filteredMessages.length}.`;
+                if (filteredMessages.length !== allMessages.length) {
+                    statusText += ` (Filtered from ${allMessages.length} total)`;
+                }
+             } else {
+                statusText = `No messages to display.`;
+             }
+             
+             if (parseErrors > 0) {
+                  statusText += ` [${parseErrors} date parsing error(s)]`;
+             }
+             
+             statusDiv.textContent = statusText;
+        }
+
+        // --- Reset Application State ---
+        function resetUIState() {
+            allMessages = [];
+            filteredMessages = [];
+            senderColors = {};
+            nextColorIndex = 0;
+            renderedStartIndex = 0;
+            renderedEndIndex = 0;
+            visibleStartIndex = 0;
+            visibleEndIndex = 0;
+
+            chatDisplay.innerHTML = '';
+            chatDisplay.scrollTop = 0;
+            chatDisplay.onscroll = null; // Disable scroll listener
+
+            senderFilter.innerHTML = '<option value="">-- All Senders --</option>';
+            searchInput.value = '';
+            caseSensitive.checked = false;
+            startDateFilter.value = '';
+            endDateFilter.value = '';
+            jumpToDateInput.value = '';
+            // Do not clear the file input or text area here, let user do that if needed
+        }
+
+        function clearAllData() {
+            resetUIState();
+             fileInput.value = null; // Clear file selection
+             textInput.value = ''; // Clear text area
+            statusDiv.textContent = "Data cleared. Ready for new input.";
+            console.log("All application data cleared.");
+        }
+
+        // --- Distraction-Free Mode ---
+        function toggleDistractionFreeMode() {
+            document.body.classList.toggle('distraction-free');
+            
+            // Update the button icon depending on the mode
+            if (document.body.classList.contains('distraction-free')) {
+                distractionToggle.innerHTML = '🔍';
+                distractionToggle.title = 'Show Controls';
+                // Make sure virtual scrolling still works after toggle
+                setTimeout(() => {
+                    if (typeof setupVirtualScrolling === 'function') {
+                        setupVirtualScrolling();
+                        if (typeof handleScroll === 'function') {
+                            handleScroll(); // Force recalculation of visible window
+                        }
+                    }
+                }, 300); // Give animation time to complete
+            } else {
+                distractionToggle.innerHTML = '📱';
+                distractionToggle.title = 'Hide Controls';
+                // Make sure virtual scrolling still works after toggle
+                setTimeout(() => {
+                    if (typeof setupVirtualScrolling === 'function') {
+                        setupVirtualScrolling();
+                    }
+                }, 300);
+            }
+        }
+
+        // --- Event Listeners ---
+        processButton.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Don't put large file content in textarea by default
+                    // textInput.value = e.target.result;
+                    processLogData(e.target.result);
+                };
+                reader.onerror = () => {
+                    statusDiv.textContent = `Error reading file: ${reader.error}`;
+                     processButton.disabled = false; // Re-enable on error
+                     clearButton.disabled = false;
+                };
+                 statusDiv.textContent = "Reading file..."; // Indicate reading start
+                 processButton.disabled = true;
+                 clearButton.disabled = true;
+                 reader.readAsText(file);
+            } else if (textInput.value.trim()) {
+                processLogData(textInput.value);
+            } else {
+                statusDiv.textContent = "Please upload a file or paste text first.";
+            }
+        });
+
+        clearButton.addEventListener('click', clearAllData);
+
+        filterButton.addEventListener('click', applyFiltersAndSearch);
+        jumpButton.addEventListener('click', jumpToDateTime);
+
+        // Filter on Enter key in search input
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyFiltersAndSearch();
+            }
+        });
+
+        // Distraction-free mode toggle - single event listener
+        distractionToggle.addEventListener('click', toggleDistractionFreeMode);
+
+        // Initial state
+        clearButton.disabled = false; // Enable clear button initially
+
+
+    </script>
+</body>
+</html>
